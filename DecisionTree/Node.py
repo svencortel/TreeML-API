@@ -44,6 +44,16 @@ class Node:
             # FEATURE SELECTION END
 
             #THRESHOLD SELECTION
+            #if all X data for this feature are equal, then we can't split
+            if all(X_data[number, self.feature_index] == X_data[0, self.feature_index]
+                   for number in range(1, len(X_data[:, self.feature_index]))):
+                if not self.random:
+                    raise Exception("Error in choosing feature to split by, "
+                                    "maybe labels are continuous?")
+                self.setClass(self._getMajorityClass(y_data))
+                return
+
+            # if we are here then a proper split can be made
             self.threshold = getNodeSplitLabels(X_data[:, self.feature_index], y_data)
             #THRESHOLD SELECTION END
 
@@ -89,25 +99,15 @@ class Node:
 # Process each feature using the decision stump model
 # Input: feature data, labels
 # Return: Predicted value by the model
-
 def getNodeSplitLabels(samples, labels):
     clf = DecisionTreeClassifier(max_depth=1, criterion="entropy")
     samples = samples.reshape(-1, 1)
     clf.fit(samples, labels)
     return clf.tree_.threshold[0]
 
-# Split master data by predicted labels by the model
+# Split X data by threshold and feature
 # Input: predicted labels
 # Return: Dictionary with the left and right sub-sets (split the master data)
-
-def SplitMasterDataByThreshold(X_data, y_data, threshold, feature_index):
-
-    return FilterData(X_data, y_data, threshold, feature_index)
-
-# Get instances for the list of row indexes
-# Input: sample data, list of row index
-# Return: data instances at the provided index
-
 def FilterData(x_data, y_data, threshold, feature_index):
     x_res_left = np.vstack(x_data[x_data[:,feature_index] <= threshold])
     y_res_left = np.vstack(y_data[x_data[:,feature_index] <= threshold])

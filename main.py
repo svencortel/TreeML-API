@@ -1,12 +1,13 @@
 from DecisionTree.Tree import *
-from sklearn.datasets import load_breast_cancer
+from sklearn.datasets import load_iris
 from sklearn.tree import DecisionTreeClassifier, export_graphviz
 import graphviz
 from time import time
 
-NR_TREES = 30
+NR_TREES = 35
+DEPTH = 3
 
-iris=load_breast_cancer()
+iris=load_iris()
 X=iris.data
 y=iris.target
 
@@ -24,7 +25,7 @@ st1 = time()
 t = []
 # generate 10 random trees and look at the dist
 for i in range(0,NR_TREES):
-    t.append(Tree(max_depth=3, random_feat=True))
+    t.append(Tree(max_depth=DEPTH, random_feat=True))
     t[i].train(X, y)
 en1 = time()
 
@@ -48,7 +49,7 @@ acc_tuples = sorted(acc_tuples, key=lambda kv: kv[1])
 for tup in acc_tuples:
     print("Tree " + str(tup[0]) + " acc:", tup[1])
 
-clf = DecisionTreeClassifier(criterion='entropy', max_depth=3)
+clf = DecisionTreeClassifier(criterion='entropy', max_depth=DEPTH)
 st2 = time()
 clf.fit(X, y)
 en2 = time()
