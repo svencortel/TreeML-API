@@ -1,10 +1,10 @@
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.tree import DecisionTreeClassifier
-from collections import defaultdict
 import numpy as np
+from random import randint
 
 class Node:
-    def __init__(self, feature_index = None, IG_score = None, current_depth = 0, threshold = None):
+    def __init__(self, feature_index = None, IG_score = None, current_depth = 0, threshold = None, random_feat = False):
         self.feature_index = feature_index
         self.IG_score = IG_score
         self.threshold = threshold
@@ -12,6 +12,7 @@ class Node:
         self.child_left = None
         self.child_right = None
         self.class_value = None
+        self.random = random_feat
 
     def setLeftChild(self, node):
         self.child_left = node
@@ -35,20 +36,34 @@ class Node:
         elif all(y_data[number] == y_data[0] for number in range(1, len(y_data) - 1)):
             self.setClass(y_data[0])
         else:
-            features_IG = mutual_info_classif(X_data, y_data)
-            self.IG_score = max(features_IG)
-            # hopefully this doesn't return an array
-            self.feature_index = features_IG.argmax()
-            self.threshold = getNodeSplitLabels(X_data[:, self.feature_index],
-                                                y_data)
-            split_data = SplitMasterDataByThreshold(X_data, y_data, self.threshold,
-                                                    self.feature_index)
-            self.child_left = Node(current_depth=self.depth + 1)
-            self.child_right = Node(current_depth=self.depth + 1)
+            # FEATURE SELECTION
+            if self.random:
+                self.selectFeatureByRandom(X_data)
+            else:
+                self.selectFeatureByScore(X_data, y_data)
+            # FEATURE SELECTION END
+
+            #THRESHOLD SELECTION
+            self.threshold = getNodeSplitLabels(X_data[:, self.feature_index], y_data)
+            #THRESHOLD SELECTION END
+
+            split_data = FilterData(X_data, y_data, self.threshold, self.feature_index)
+            self.child_left = Node(current_depth=self.depth + 1, random_feat=self.random)
+            self.child_right = Node(current_depth=self.depth + 1, random_feat=self.random)
             self.child_left.train(split_data['leftExamples'], split_data['leftLabels'],
                                   max_depth=max_depth)
             self.child_right.train(split_data['rightExamples'], split_data['rightLabels'],
                                    max_depth=max_depth)
+
+    def selectFeatureByScore(self, X_data, y_data, criterion="entropy"):
+        features_IG = mutual_info_classif(X_data, y_data)
+        self.IG_score = max(features_IG)
+        # hopefully this doesn't return an array
+        self.feature_index = features_IG.argmax()
+
+    def selectFeatureByRandom(self, X_data):
+        self.IG_score = -1 # -1 for random criteria selection
+        self.feature_index = randint(0, X_data.shape[1]-1)
 
     def predictData(self, data):
         if self.isLeaf():
@@ -79,7 +94,6 @@ def getNodeSplitLabels(samples, labels):
     clf = DecisionTreeClassifier(max_depth=1, criterion="entropy")
     samples = samples.reshape(-1, 1)
     clf.fit(samples, labels)
-    print(clf.score(samples, labels))
     return clf.tree_.threshold[0]
 
 # Split master data by predicted labels by the model
