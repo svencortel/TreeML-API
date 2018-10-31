@@ -18,3 +18,10 @@ def Generate_ROC_Curve(trueLabels, probabiltyEstimateOfLabel):
     plt.title("ROC Curve")
     plt.legend(loc=4)
     plt.show() 
+    
+def random_decision_tree_accuracy(treesAccuracyList, number_of_trees):    
+    num_bins = 20
+    n, bins, patches = plt.hist(treesAccuracyList, num_bins, facecolor='blue', alpha=0.5)
+    plt.xlabel('Accuracy')
+    plt.ylabel('Number Of Trees')
+    plt.show() 
