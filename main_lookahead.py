@@ -1,13 +1,12 @@
 from DecisionTree.Tree import *
-from sklearn.datasets import load_digits
+from sklearn.datasets import load_iris
 from sklearn.tree import DecisionTreeClassifier, export_graphviz
 import graphviz
 from time import time
 
-NR_TREES = 2000
-DEPTH = 5
+DEPTH = 2
 
-iris=load_digits()
+iris=load_iris()
 X=iris.data
 y=iris.target
 
@@ -21,33 +20,21 @@ def getAccuracy(pred_y, actu_y):
 
     return correct/len(pred_y)
 
+print(X)
 st1 = time()
-t = []
-# generate 10 random trees and look at the dist
-for i in range(0,NR_TREES):
-    t.append(Tree(max_depth=DEPTH, random_feat=True))
-    t[i].train(X, y)
+t=Tree(max_depth=DEPTH, lookahead=True)
+t.train(X, y)
 en1 = time()
 
-# for i in range(0,NR_TREES):
-#     print("Tree",i)
-#     t[i].printTree()
+t.printTree()
 
 print(y)
 st1p = time()
-y_pred = []
-for i in range(0,NR_TREES):
-    y_pred.append(t[i].predict(X))
+y_pred=t.predict(X)
 en1p = time()
+print(y_pred)
 
-acc_tuples = []
-for i in range(0, NR_TREES):
-    acc_tuples.append(( i, getAccuracy(y, y_pred[i]) ))
-
-acc_tuples = sorted(acc_tuples, key=lambda kv: kv[1])
-
-for tup in acc_tuples:
-    print("Tree " + str(tup[0]) + " acc:", tup[1])
+print(getAccuracy(y, y_pred))
 
 clf = DecisionTreeClassifier(criterion='entropy', max_depth=DEPTH)
 st2 = time()
@@ -56,6 +43,7 @@ en2 = time()
 st2p = time()
 y_pred2 = clf.predict(X)
 en2p = time()
+#print(y_pred2)
 print(getAccuracy(y, y_pred2))
 
 print("Custom alg. time to train:", en1-st1)

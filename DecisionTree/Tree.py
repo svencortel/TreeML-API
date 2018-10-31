@@ -3,10 +3,16 @@ from sklearn.metrics import accuracy_score
 
 class Tree:
     """The structure of the tree"""
-    def __init__(self, criterion = "entropy", max_depth = None,
+    def __init__(self, criterion = "entropy", max_depth = None, lookahead = False,
                  random_feat=False, PFSRT=False, omega = 1.9, theta = 0.9):
+        if random_feat and lookahead:
+            raise Exception("random and lookahead cannot coexist in the same tree")
+        if PFSRT and lookahead:
+            raise Exception("random and PFSRT cannot coexist in the same tree")
+
         self.criterion = criterion
         self.max_depth = max_depth
+        self.lookahead = lookahead
         self.X_data = None
         self.y_data = None
         self.root_node = None
@@ -53,7 +59,11 @@ class Tree:
         # init root node and start training
         #print("Training Tree Model. Please Wait...")
         self.root_node = Node(random_feat = self.random, tree=self)
-        self.root_node.train(self.X_data, self.y_data, self.max_depth)
+
+        if self.lookahead:
+            self.root_node.train_lookahead(self.X_data, self.y_data, self.max_depth)
+        else:
+            self.root_node.train(self.X_data, self.y_data, self.max_depth)
 
     def updatePFSRT(self):
         if not self.is_PFSRT:
@@ -71,6 +81,17 @@ class Tree:
         for i in X_data:
             result.append(self.root_node.predictData(i))
         return np.array(result)
+
+    def isBinaryClassifier(self):
+        return len(np.unique(self.y_data))==2
+
+    def getClassProb(self, X_data):
+        if not self.isBinaryClassifier():
+            raise Exception("classification must be binary for getClassProb")
+        result = []
+        for i in X_data:
+            result.append(self.root_node.getPositiveProb(i))
+        return result
 
     def printTree(self):
         self.root_node.printNode()

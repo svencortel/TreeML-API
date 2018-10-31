@@ -2,6 +2,7 @@ from sklearn.feature_selection import mutual_info_classif
 from sklearn.tree import DecisionTreeClassifier
 import numpy as np
 from random import randint, seed, random
+from sklearn.metrics.cluster import e
 
 class Node:
     def __init__(self, feature_index = None, IG_score = None, current_depth = 0,
@@ -16,6 +17,7 @@ class Node:
         self.child_right = None
         self.parent = parent
         self.class_value = None
+        self.posProb = None
         seed()
 
     def setLeftChild(self, node):
@@ -34,16 +36,102 @@ class Node:
         (vals, counts) = np.unique(y_data, return_counts=True)
         return vals[np.argmax(counts)]
 
+    def _setPosProb(self, y_data):
+        if self._tree.isBinaryClassifier():
+            nr_pos = 0
+            nr_neg = 0
+            for i in y_data:
+                if i > 0:
+                    nr_pos += 1
+                else:
+                    nr_neg += 1
+
+            self.posProb = nr_pos/(nr_neg+nr_pos)
+
+    def train_lookahead(self, X_data, y_data, max_depth):
+        if self.depth == max_depth:
+            self.setClass(self._getMajorityClass(y_data))
+            self._setPosProb(y_data)
+        elif all(y_data[number] == y_data[0] for number in range(1, len(y_data) - 1)):
+            self.setClass(y_data[0][0])
+            self._setPosProb(y_data)
+        elif self.depth < max_depth - 1:
+            #FEATURE AND THRESHOLD SELECTION THROUGH LOOKAHEAD
+            self.feature_index, self.threshold, self.IG_score = self.lookahead(X_data,
+                                                                               y_data)
+            if self.threshold is None:
+                self.setClass(self._getMajorityClass(y_data))
+                self._setPosProb(y_data)
+                return
+
+            split_data = FilterData(X_data, y_data, self.threshold, self.feature_index)
+            self.child_left = Node(current_depth=self.depth + 1,
+                                   tree=self._tree, parent=self)
+            self.child_right = Node(current_depth=self.depth + 1,
+                                    tree=self._tree, parent=self)
+            self.child_left.train_lookahead(split_data['leftExamples'],
+                                            split_data['leftLabels'],
+                                            max_depth=max_depth)
+            self.child_right.train_lookahead(split_data['rightExamples'],
+                                             split_data['rightLabels'],
+                                             max_depth=max_depth)
+        else:
+            print("ey")
+            # if next node is leaf then train the node normally
+            self.train(X_data, y_data, max_depth)
+
+    def lookahead(self, X_data, y_data):
+        best_IG=0
+        best_feat=0
+        best_threshold = None
+
+        for feature in range(0, X_data.shape[1]):
+            print("Working on feature", feature)
+            if all(X_data[:, feature] == X_data[0, feature]):
+                print("Useless feature:", feature)
+                continue
+            data = np.unique(sorted(X_data[:,feature]))
+            print(data)
+
+            for i in range(0, len(data) - 2):
+                t = (data[i] + data[i+1]) / 2
+                split = FilterData(X_data,y_data,t,feature)
+                child_left = Node()
+                child_right = Node()
+                print(split["leftExamples"][:,feature])
+                print(split["rightExamples"][:, feature])
+                ig1 = child_left.getIG(split["leftExamples"], split["leftLabels"])
+                ig2 = child_right.getIG(split["rightExamples"], split["rightLabels"])
+                cur_ig = (ig1 + ig2) / 2
+                if feature == 0:
+                    print("Found feature", feature, "with ig1:", ig1, "ig2:", ig2, "i:", i,
+                      "t:", t)
+                if cur_ig > best_IG:
+                    best_IG = cur_ig
+                    best_threshold = t
+                    best_feat = feature
+
+        return (best_feat, best_threshold, best_IG)
+
+    def getIG(self, X_data, y_data):
+        self.selectFeatureByScore(X_data, y_data)
+        if self.feature_index is None:
+            return 0
+        return self.IG_score
+
     def train(self, X_data, y_data, max_depth):
         if self.depth == max_depth:
             self.setClass(self._getMajorityClass(y_data))
+            self._setPosProb(y_data)
         elif all(y_data[number] == y_data[0] for number in range(1, len(y_data) - 1)):
             self.setClass(y_data[0][0])
+            self._setPosProb(y_data)
         else:
             # FEATURE SELECTION
             self.selectFeature(X_data, y_data)
             if self.feature_index is None:
                 self.setClass(self._getMajorityClass(y_data))
+                self._setPosProb(y_data)
                 return
             # FEATURE SELECTION END
 
@@ -93,6 +181,7 @@ class Node:
                 raise Exception("Error in choosing feature to split by, "
                                 "maybe labels are continuous?")
             self.setClass(self._getMajorityClass(y_data))
+            self._setPosProb(y_data)
             return
 
         # if we are here then a proper split can be made
@@ -101,31 +190,35 @@ class Node:
 
     def selectFeatureByScore(self, X_data, y_data, criterion="entropy"):
 
-        feature_index_association = {k:k for k in range(0,X_data.shape[1])}
-        #pr = False
+        feature_index_association = {k: k for k in range(0, X_data.shape[1])}
+        # pr = False
         # find all features that have all their data equal
         feature = 0
         while feature < X_data.shape[1]:
             if all(X_data[:, feature] == X_data[0, feature]):
-                #print("Found useless feature: ", feature)
+                # print("Found useless feature: ", feature)
                 # if not pr:
                 #     print("X_data before: ", X_data)
                 #     pr = True
-                #print(feature_index_association)
-                for feat in range(feature, len(feature_index_association)-2):
-                    feature_index_association[feat] = feature_index_association[feat+1]
-                del feature_index_association[len(feature_index_association)-1]
-                #print(feature_index_association)
+                # print(feature_index_association)
+                for feat in range(feature, len(feature_index_association) - 2):
+                    feature_index_association[feat] = feature_index_association[feat + 1]
+                del feature_index_association[len(feature_index_association) - 1]
+                # print(feature_index_association)
                 X_data = np.delete(X_data, feature, axis=1)
                 feature -= 1
             feature += 1
 
+        if feature_index_association == {}:
+            self.feature_index = None
+            return
         # if(pr):
         #     print("X_data after: ", X_data)
 
         features_IG = mutual_info_classif(X_data, y_data.ravel())
         self.IG_score = max(features_IG)
         # hopefully this doesn't return an array
+        #print(feature_index_association)
         self.feature_index = feature_index_association[features_IG.argmax()]
 
     def selectFeatureByRandom(self, X_data):
@@ -139,7 +232,11 @@ class Node:
 
     def selectFeatureByPFSRT(self, X_data):
         self.IG_score = -1
-        self.feature_index = self._ProbabilisticFeatureSelection()
+        assoc_dict = self._uselessFeatureElimination(X_data)
+        if assoc_dict == {}:
+            self.feature_index = None
+            return
+        self.feature_index = self._ProbabilisticFeatureSelection(assoc_dict)
 
     def _uselessFeatureElimination(self, X_data):
         feature_index_association = {k: k for k in range(0, X_data.shape[1])}
@@ -162,21 +259,21 @@ class Node:
             feature += 1
         return feature_index_association
 
-    def _ProbabilisticFeatureSelection(self):
+    def _ProbabilisticFeatureSelection(self, assoc_dict):
         # magnitudes array
         M = []
-        for i in range(0, self._tree.nr_features-1):
-            M.append(self._tree.DS[i][self.depth] *  # + or * ?
-                     (self._tree.PS[i][self.parent.feature_index]
+        for i in range(0, len(assoc_dict)-1):
+            M.append(self._tree.DS[assoc_dict[i]][self.depth] *  # + or * ?
+                     (self._tree.PS[assoc_dict[i]][self.parent.feature_index]
                      if self.parent is not None else
-                      self._tree.PS[i][self._tree.nr_features]))
+                      self._tree.PS[assoc_dict[i]][self._tree.nr_features]))
 
         randv = random() * sum(M)
 
-        for i in range(0, self._tree.nr_features-1):
+        for i in range(0, len(assoc_dict)-1):
             if randv < sum(M[:i]):
-                return i
-        return self._tree.nr_features-1
+                return assoc_dict[i]
+        return assoc_dict[len(assoc_dict)-1]
 
     def predictData(self, data):
         if self.isLeaf():
@@ -188,6 +285,15 @@ class Node:
             return self.child_left.predictData(data)
         else:
             return self.child_right.predictData(data)
+
+    def getPositiveProb(self, data):
+        if self.isLeaf():
+            return self.posProb
+
+        if data[self.feature_index] <= self.threshold:
+            return self.child_left.getPositiveProb(data)
+        else:
+            return self.child_right.getPositiveProb(data)
 
     def printNode(self):
         if not self.isLeaf():
@@ -215,6 +321,10 @@ class Node:
             self.child_left.recursiveUpdatePFSRT()
             self.child_right.recursiveUpdatePFSRT()
 
+    def getClassProb(self, data):
+        if self.isLeaf():
+            return
+
 # Process each feature using the decision stump model
 # Input: feature data, labels
 # Return: Predicted value by the model
@@ -235,3 +345,4 @@ def FilterData(x_data, y_data, threshold, feature_index):
 
     return {"leftExamples":x_res_left, "leftLabels":y_res_left,
             "rightExamples":x_res_right, "rightLabels":y_res_right}
+
