@@ -1,18 +1,22 @@
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.tree import DecisionTreeClassifier
 import numpy as np
-from random import randint
+from random import randint, seed, random
 
 class Node:
-    def __init__(self, feature_index = None, IG_score = None, current_depth = 0, threshold = None, random_feat = False):
+    def __init__(self, feature_index = None, IG_score = None, current_depth = 0,
+                 threshold = None, random_feat = False, tree = None, parent = None):
         self.feature_index = feature_index
         self.IG_score = IG_score
         self.threshold = threshold
         self.depth = current_depth
+        self.random = random_feat
+        self._tree = tree
         self.child_left = None
         self.child_right = None
+        self.parent = parent
         self.class_value = None
-        self.random = random_feat
+        seed()
 
     def setLeftChild(self, node):
         self.child_left = node
@@ -34,20 +38,21 @@ class Node:
         if self.depth == max_depth:
             self.setClass(self._getMajorityClass(y_data))
         elif all(y_data[number] == y_data[0] for number in range(1, len(y_data) - 1)):
-            self.setClass(y_data[0])
+            self.setClass(y_data[0][0])
         else:
             # FEATURE SELECTION
             if self.random:
                 self.selectFeatureByRandom(X_data)
+            elif self._tree.is_PFSRT:
+                self.selectFeatureByPFSRT(X_data)
             else:
                 self.selectFeatureByScore(X_data, y_data)
             # FEATURE SELECTION END
 
             #THRESHOLD SELECTION
             #if all X data for this feature are equal, then we can't split
-            if all(X_data[number, self.feature_index] == X_data[0, self.feature_index]
-                   for number in range(1, len(X_data[:, self.feature_index]))):
-                if not self.random:
+            if all(X_data[:, self.feature_index] == X_data[0, self.feature_index]):
+                if not self.random and not self._tree.is_PFSRT:
                     raise Exception("Error in choosing feature to split by, "
                                     "maybe labels are continuous?")
                 self.setClass(self._getMajorityClass(y_data))
@@ -58,8 +63,10 @@ class Node:
             #THRESHOLD SELECTION END
 
             split_data = FilterData(X_data, y_data, self.threshold, self.feature_index)
-            self.child_left = Node(current_depth=self.depth + 1, random_feat=self.random)
-            self.child_right = Node(current_depth=self.depth + 1, random_feat=self.random)
+            self.child_left = Node(current_depth=self.depth + 1, random_feat=self.random,
+                                   tree=self._tree, parent=self)
+            self.child_right = Node(current_depth=self.depth + 1, random_feat=self.random,
+                                    tree=self._tree, parent=self)
             self.child_left.train(split_data['leftExamples'], split_data['leftLabels'],
                                   max_depth=max_depth)
             self.child_right.train(split_data['rightExamples'], split_data['rightLabels'],
@@ -73,7 +80,27 @@ class Node:
 
     def selectFeatureByRandom(self, X_data):
         self.IG_score = -1 # -1 for random criteria selection
-        self.feature_index = randint(0, X_data.shape[1]-1)
+        self.feature_index = randint(0, self._tree.nr_features-1)
+
+    def selectFeatureByPFSRT(self, X_data):
+        self.IG_score = -1
+        self.feature_index = self._ProbabilisticFeatureSelection()
+
+    def _ProbabilisticFeatureSelection(self):
+        # magnitudes array
+        M = []
+        for i in range(0, self._tree.nr_features-1):
+            M.append(self._tree.DS[i][self.depth] *  # + or * ?
+                     (self._tree.PS[i][self.parent.feature_index]
+                     if self.parent is not None else
+                      self._tree.PS[i][self._tree.nr_features]))
+
+        randv = random() * sum(M)
+
+        for i in range(0, self._tree.nr_features-1):
+            if randv < sum(M[:i]):
+                return i
+        return self._tree.nr_features-1
 
     def predictData(self, data):
         if self.isLeaf():
@@ -95,6 +122,22 @@ class Node:
 
         self.child_left.printNode()
         self.child_right.printNode()
+
+    def recursiveUpdatePFSRT(self):
+        if not self.isLeaf():
+            var = self._tree.DS[self.feature_index][self.depth]
+            modifier = self._tree.theta
+            parent_feature = (self.parent.feature_index if self.parent is not None else
+                              self._tree.nr_features)
+            if self._tree._cur_accuracy > self._tree._best_accuracy:
+                modifier = self._tree.omega
+            self._tree.DS[self.feature_index][self.depth] = (var +
+                (self._tree._cur_accuracy - self._tree._best_accuracy) * var) * modifier
+            self._tree.PS[self.feature_index][parent_feature] = (var +
+                (self._tree._cur_accuracy - self._tree._best_accuracy) * var) * modifier
+
+            self.child_left.recursiveUpdatePFSRT()
+            self.child_right.recursiveUpdatePFSRT()
 
 # Process each feature using the decision stump model
 # Input: feature data, labels

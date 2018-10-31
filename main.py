@@ -1,13 +1,13 @@
 from DecisionTree.Tree import *
-from sklearn.datasets import load_iris
+from sklearn.datasets import load_digits
 from sklearn.tree import DecisionTreeClassifier, export_graphviz
 import graphviz
 from time import time
 
-NR_TREES = 35
-DEPTH = 3
+NR_TREES = 500
+DEPTH = 4
 
-iris=load_iris()
+iris=load_digits()
 X=iris.data
 y=iris.target
 
