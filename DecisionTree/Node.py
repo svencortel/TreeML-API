@@ -41,25 +41,18 @@ class Node:
             self.setClass(y_data[0][0])
         else:
             # FEATURE SELECTION
-            if self.random:
-                self.selectFeatureByRandom(X_data)
-            elif self._tree.is_PFSRT:
-                self.selectFeatureByPFSRT(X_data)
-            else:
-                self.selectFeatureByScore(X_data, y_data)
+            self.selectFeature(X_data, y_data)
+            if self.feature_index is None:
+                self.setClass(self._getMajorityClass(y_data))
+                return
             # FEATURE SELECTION END
 
             #THRESHOLD SELECTION
-            #if all X data for this feature are equal, then we can't split
-            if all(X_data[:, self.feature_index] == X_data[0, self.feature_index]):
-                if not self.random and not self._tree.is_PFSRT:
-                    raise Exception("Error in choosing feature to split by, "
-                                    "maybe labels are continuous?")
-                self.setClass(self._getMajorityClass(y_data))
+            self.selectThreshold(X_data, y_data, self.feature_index)
+            if self.threshold is None and self.class_value is not None:
                 return
-
-            # if we are here then a proper split can be made
-            self.threshold = getNodeSplitLabels(X_data[:, self.feature_index], y_data)
+            elif self.threshold is None and self.class_value is None:
+                raise Exception("Node is neither leaf nor splitting")
             #THRESHOLD SELECTION END
 
             split_data = FilterData(X_data, y_data, self.threshold, self.feature_index)
@@ -72,19 +65,102 @@ class Node:
             self.child_right.train(split_data['rightExamples'], split_data['rightLabels'],
                                    max_depth=max_depth)
 
+    def selectFeature(self, X_data, y_data):
+        if self.random:
+            self.selectFeatureByRandom(X_data)
+        elif self._tree.is_PFSRT:
+            self.selectFeatureByPFSRT(X_data)
+        else:
+            self.selectFeatureByScore(X_data, y_data)
+
+    def selectThreshold(self, X_data, y_data, feature_index):
+        # if X_data.size == 0:
+        #     self.setClass(self._getMajorityClass(y_data))
+        #     print("We're done bro")
+        #     return
+
+        # if all X data for this feature are equal, then we can't split
+        if all(X_data[:, self.feature_index] == X_data[0, self.feature_index]):
+            #print(X_data[:, self.feature_index], self.feature_index)
+
+            # print(X_data)
+            # X_data = np.delete(X_data, [self.feature_index], axis=1)
+            # self.selectFeature(X_data, y_data)
+            # print(X_data)
+            # self.selectThreshold(X_data, y_data, self.feature_index)
+
+            if not self._tree.is_PFSRT:
+                raise Exception("Error in choosing feature to split by, "
+                                "maybe labels are continuous?")
+            self.setClass(self._getMajorityClass(y_data))
+            return
+
+        # if we are here then a proper split can be made
+        self.threshold = getNodeSplitThreshold(X_data[:, self.feature_index], y_data)
+        #print(self.threshold)
+
     def selectFeatureByScore(self, X_data, y_data, criterion="entropy"):
-        features_IG = mutual_info_classif(X_data, y_data)
+
+        feature_index_association = {k:k for k in range(0,X_data.shape[1])}
+        #pr = False
+        # find all features that have all their data equal
+        feature = 0
+        while feature < X_data.shape[1]:
+            if all(X_data[:, feature] == X_data[0, feature]):
+                #print("Found useless feature: ", feature)
+                # if not pr:
+                #     print("X_data before: ", X_data)
+                #     pr = True
+                #print(feature_index_association)
+                for feat in range(feature, len(feature_index_association)-2):
+                    feature_index_association[feat] = feature_index_association[feat+1]
+                del feature_index_association[len(feature_index_association)-1]
+                #print(feature_index_association)
+                X_data = np.delete(X_data, feature, axis=1)
+                feature -= 1
+            feature += 1
+
+        # if(pr):
+        #     print("X_data after: ", X_data)
+
+        features_IG = mutual_info_classif(X_data, y_data.ravel())
         self.IG_score = max(features_IG)
         # hopefully this doesn't return an array
-        self.feature_index = features_IG.argmax()
+        self.feature_index = feature_index_association[features_IG.argmax()]
 
     def selectFeatureByRandom(self, X_data):
         self.IG_score = -1 # -1 for random criteria selection
-        self.feature_index = randint(0, self._tree.nr_features-1)
+        feat_assoc = self._uselessFeatureElimination(X_data)
+        if feat_assoc == {}:
+            self.feature_index = None
+            return
+        naive_feat = randint(0, len(feat_assoc)-1)
+        self.feature_index = feat_assoc[naive_feat]
 
     def selectFeatureByPFSRT(self, X_data):
         self.IG_score = -1
         self.feature_index = self._ProbabilisticFeatureSelection()
+
+    def _uselessFeatureElimination(self, X_data):
+        feature_index_association = {k: k for k in range(0, X_data.shape[1])}
+        # pr = False
+        # find all features that have all their data equal
+        feature = 0
+        while feature < X_data.shape[1]:
+            if all(X_data[:, feature] == X_data[0, feature]):
+                # print("Found useless feature: ", feature)
+                # if not pr:
+                #     print("X_data before: ", X_data)
+                #     pr = True
+                # print(feature_index_association)
+                for feat in range(feature, len(feature_index_association) - 2):
+                    feature_index_association[feat] = feature_index_association[feat + 1]
+                del feature_index_association[len(feature_index_association) - 1]
+                # print(feature_index_association)
+                X_data = np.delete(X_data, feature, axis=1)
+                feature -= 1
+            feature += 1
+        return feature_index_association
 
     def _ProbabilisticFeatureSelection(self):
         # magnitudes array
@@ -142,7 +218,7 @@ class Node:
 # Process each feature using the decision stump model
 # Input: feature data, labels
 # Return: Predicted value by the model
-def getNodeSplitLabels(samples, labels):
+def getNodeSplitThreshold(samples, labels):
     clf = DecisionTreeClassifier(max_depth=1, criterion="entropy")
     samples = samples.reshape(-1, 1)
     clf.fit(samples, labels)

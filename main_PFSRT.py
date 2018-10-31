@@ -5,7 +5,7 @@ import graphviz
 from time import time
 
 NR_TREES = 500
-DEPTH = 4
+DEPTH = 5
 
 iris=load_digits()
 X=iris.data

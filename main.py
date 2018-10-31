@@ -4,8 +4,8 @@ from sklearn.tree import DecisionTreeClassifier, export_graphviz
 import graphviz
 from time import time
 
-NR_TREES = 500
-DEPTH = 4
+NR_TREES = 2000
+DEPTH = 6
 
 iris=load_digits()
 X=iris.data
@@ -29,9 +29,9 @@ for i in range(0,NR_TREES):
     t[i].train(X, y)
 en1 = time()
 
-for i in range(0,NR_TREES):
-    print("Tree",i)
-    t[i].printTree()
+# for i in range(0,NR_TREES):
+#     print("Tree",i)
+#     t[i].printTree()
 
 print(y)
 st1p = time()

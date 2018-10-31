@@ -4,7 +4,7 @@ from sklearn.tree import DecisionTreeClassifier, export_graphviz
 import graphviz
 from time import time
 
-DEPTH = 4
+DEPTH = 6
 
 iris=load_digits()
 X=iris.data

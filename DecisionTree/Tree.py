@@ -27,6 +27,7 @@ class Tree:
         self.PS = None
 
     def load(self, X_data, y_data):
+        #print(X_data)
         self.X_data = X_data
         self.y_data = y_data
         self.nr_features = X_data.shape[1]
@@ -36,11 +37,11 @@ class Tree:
         if self.is_PFSRT:
             self.DS = np.ones((self.nr_features, self.max_depth))
             self.PS = np.ones((self.nr_features, self.nr_features+1))
-            print(self.DS)
-            print(self.PS)
-            print(self.DS.shape)
-            print(self.PS.shape)
-            print(self.nr_features)
+            # print(self.DS)
+            # print(self.PS)
+            # print(self.DS.shape)
+            # print(self.PS.shape)
+            # print(self.nr_features)
 
     def train(self, X_data = None, y_data = None):
         if X_data is None and y_data is None:
@@ -50,6 +51,7 @@ class Tree:
             self.load(X_data, y_data)
 
         # init root node and start training
+        #print("Training Tree Model. Please Wait...")
         self.root_node = Node(random_feat = self.random, tree=self)
         self.root_node.train(self.X_data, self.y_data, self.max_depth)
 
