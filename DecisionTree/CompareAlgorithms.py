@@ -32,6 +32,7 @@ def random_decision_tree_accuracy(treesAccuracyList, label_text=""):
     ax.set_xlabel('Accuracy')
     ax.set_ylabel('Number Of Trees')
     ax.set_title("Distribution of Trees based on Training Accuracy")
+    f.legend(loc=4)
     f.show()
 
 def accuracyRiseForRandomTrees(max_accs, label_text=""):
@@ -41,6 +42,7 @@ def accuracyRiseForRandomTrees(max_accs, label_text=""):
     ax.set_xlabel('Iteration')
     ax.set_ylabel('Accuracy')
     ax.set_title("Best Tree Accuracy Improvement in Random Forest")
+    f.legend(loc=4)
     f.show()
 
 def cross_validate(tree_obj, X, y, cv = 3):
