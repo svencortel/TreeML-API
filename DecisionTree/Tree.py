@@ -45,11 +45,6 @@ class Tree:
         if self.is_PFSRT:
             self.DS = np.ones((self.nr_features, self.max_depth))
             self.PS = np.ones((self.nr_features, self.nr_features+1))
-            # print(self.DS)
-            # print(self.PS)
-            # print(self.DS.shape)
-            # print(self.PS.shape)
-            # print(self.nr_features)
 
     def train(self, X_data = None, y_data = None):
         if X_data is None and y_data is None:

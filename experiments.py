@@ -5,7 +5,7 @@ from sklearn.metrics import accuracy_score
 from time import time
 
 DEPTH = 3
-NR_RAND_TREES = 300
+NR_RAND_TREES = 200
 
 X, y = load_breast_cancer(return_X_y=True)
 print(y,"\n")
@@ -43,12 +43,14 @@ y2_pred = None
 acc_max = 0
 
 iterations_taken = NR_RAND_TREES
+acc_list = []
 
 st2 = time()
 for i in range(0, NR_RAND_TREES):
     t2.train(X, y)
     y2_pred = t2.predict(X)
     acc = accuracy_score(y2_pred, y)
+    acc_list.append(acc)
     if acc >= basic_acc:
         iterations_taken = i+1
         t2_max = t2
@@ -69,6 +71,7 @@ print("Accuracy: ", acc_max)
 print("Time to train:", en2-st2)
 print("Iterations taken:", iterations_taken)
 print("Time to test:", en2p-st2p)
+random_decision_tree_accuracy(acc_list)
 
 if len(np.unique(y)) == 2:
     Generate_ROC_Curve(y,t2_max.getClassProb(X))

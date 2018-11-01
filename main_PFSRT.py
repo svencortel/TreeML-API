@@ -28,8 +28,6 @@ t.printTree()
 
 t.updatePFSRT()
 
-#print(t.DS)
-#print(t.PS)
 acc = []
 for i in range(0,NR_TREES):
     t.train() # train with same data

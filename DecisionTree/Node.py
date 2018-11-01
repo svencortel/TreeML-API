@@ -76,7 +76,6 @@ class Node:
                                              split_data['rightLabels'],
                                              max_depth=max_depth)
         else:
-            print("ey")
             # if next node is leaf then train the node normally
             self.train(X_data, y_data, max_depth)
 
@@ -89,24 +88,20 @@ class Node:
             if all(X_data[:, feature] == X_data[0, feature]):
                 continue
             data = np.unique(sorted(X_data[:,feature]))
-            #print(data)
 
             # calculate entropy of this node
             cur_entropy = 0
-            (vals, counts) = np.unique(y_data, return_counts=True)
+            (_, counts) = np.unique(y_data, return_counts=True)
             data_len = X_data.shape[0]
             for count in counts:
-                cur_entropy += -(count/data_len * log2(count/data_len))
-            #print(cur_entropy)
+                cur_entropy += -(count/X_data.shape[0] * log2(count/X_data.shape[0]))
 
-            #print(data)
+            # set theshold between each two data values and lookahead for potential Information Gain
             for i in range(0, len(data) - 2):
                 t = (data[i] + data[i+1]) / 2
                 split = FilterData(X_data,y_data,t,feature)
                 child_left = Node(tree=self._tree)
                 child_right = Node(tree=self._tree)
-                #print(split["leftExamples"][:,feature])
-                #print(split["rightExamples"][:, feature])
 
                 ig1 = child_left.getIG(split["leftExamples"], split["leftLabels"])
                 if ig1 is None:
@@ -116,8 +111,8 @@ class Node:
                 if ig2 is None:
                     ig2 = cur_entropy
 
-                cur_ig = (ig1 * split["leftExamples"].shape[0] +\
-                          ig2 * split["rightExamples"].shape[0]) / data_len
+                cur_ig = (ig1 * split["leftExamples"].shape[0] +
+                          ig2 * split["rightExamples"].shape[0]) / X_data.shape[0]
 
                 if cur_ig > best_IG:
                     best_IG = cur_ig
@@ -140,22 +135,15 @@ class Node:
             self.setClass(y_data[0][0])
             self._setPosProb(y_data)
         else:
-            # FEATURE SELECTION
+            # FEATURE AND THRESHOLD SELECTION
             self.selectFeature(X_data, y_data)
             if self.feature_index is None:
                 self.setClass(self._getMajorityClass(y_data))
                 self._setPosProb(y_data)
                 return
-            # FEATURE SELECTION END
+            # FEATURE AND THRESHOLD SELECTION END
 
-            #THRESHOLD SELECTION
-            #self.selectThreshold(X_data, y_data, self.feature_index)
-            #if self.threshold is None and self.class_value is not None:
-            #    return
-            #elif self.threshold is None and self.class_value is None:
-            #    raise Exception("Node is neither leaf nor splitting")
-            #THRESHOLD SELECTION END
-
+            # split data and train children
             split_data = FilterData(X_data, y_data, self.threshold, self.feature_index)
             self.child_left = Node(current_depth=self.depth + 1, random_feat=self.random,
                                    tree=self._tree, parent=self)
@@ -186,7 +174,6 @@ class Node:
 
         # if we are here then a proper split can be made
         self.threshold = getNodeSplitThreshold(X_data[:, self.feature_index], y_data)
-        #print(self.threshold)
 
     def selectFeatureByScore2(self, X_data, y_data, criterion="entropy"):
         clf = DecisionTreeClassifier(criterion=criterion, max_depth=1)
@@ -209,16 +196,11 @@ class Node:
     def selectFeatureByScore(self, X_data, y_data, criterion="entropy"):
 
         feature_index_association = {k: k for k in range(0, X_data.shape[1])}
-        # pr = False
+
         # find all features that have all their data equal
         feature = 0
         while feature < X_data.shape[1]:
             if all(X_data[:, feature] == X_data[0, feature]):
-                # print("Found useless feature: ", feature)
-                # if not pr:
-                #     print("X_data before: ", X_data)
-                #     pr = True
-                # print(feature_index_association)
                 for feat in range(feature, len(feature_index_association) - 2):
                     feature_index_association[feat] = feature_index_association[feat + 1]
                 del feature_index_association[len(feature_index_association) - 1]
@@ -230,15 +212,9 @@ class Node:
         if feature_index_association == {}:
             self.feature_index = None
             return
-        # if(pr):
-        #     print("X_data after: ", X_data)
-        # clf = DecisionTreeClassifier(max_depth=1, criterion="entropy")
-        # clf.fit(X_data, y_data)
 
         features_IG = mutual_info_classif(X_data, y_data.ravel())
         self.IG_score = max(features_IG)
-        # hopefully this doesn't return an array
-        #print(feature_index_association)
         self.feature_index = feature_index_association[features_IG.argmax()]
 
     def selectFeatureByRandom(self, X_data, y_data):
@@ -267,11 +243,6 @@ class Node:
         feature = 0
         while feature < X_data.shape[1]:
             if all(X_data[:, feature] == X_data[0, feature]):
-                # print("Found useless feature: ", feature)
-                # if not pr:
-                #     print("X_data before: ", X_data)
-                #     pr = True
-                # print(feature_index_association)
                 for feat in range(feature, len(feature_index_association) - 2):
                     feature_index_association[feat] = feature_index_association[feat + 1]
                 del feature_index_association[len(feature_index_association) - 1]
