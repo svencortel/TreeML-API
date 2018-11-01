@@ -204,7 +204,7 @@ class Node:
                 for feat in range(feature, len(feature_index_association) - 2):
                     feature_index_association[feat] = feature_index_association[feat + 1]
                 del feature_index_association[len(feature_index_association) - 1]
-                # print(feature_index_association)
+
                 X_data = np.delete(X_data, feature, axis=1)
                 feature -= 1
             feature += 1
@@ -246,7 +246,7 @@ class Node:
                 for feat in range(feature, len(feature_index_association) - 2):
                     feature_index_association[feat] = feature_index_association[feat + 1]
                 del feature_index_association[len(feature_index_association) - 1]
-                # print(feature_index_association)
+
                 X_data = np.delete(X_data, feature, axis=1)
                 feature -= 1
             feature += 1
