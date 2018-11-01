@@ -46,6 +46,9 @@ class Tree:
             self.DS = np.ones((self.nr_features, self.max_depth))
             self.PS = np.ones((self.nr_features, self.nr_features+1))
 
+    def fit(self, X_data, y_data):
+        self.train(X_data, y_data)
+
     def train(self, X_data = None, y_data = None):
         if X_data is None and y_data is None:
             if self.X_data is None:

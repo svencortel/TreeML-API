@@ -6,8 +6,10 @@ from math import log2
 
 class Node:
     def __init__(self, feature_index = None, IG_score = None, current_depth = 0,
-                 threshold = None, random_feat = False, tree = None, parent = None):
+                 threshold = None, random_feat = False, tree = None, parent = None,
+                 feature_assoc = None):
         self.feature_index = feature_index
+        self.feature_index_key = None
         self.IG_score = IG_score
         self.threshold = threshold
         self.depth = current_depth
@@ -18,6 +20,8 @@ class Node:
         self.parent = parent
         self.class_value = None
         self.posProb = None
+        self.feature_index_key = None
+        self.feature_assoc = feature_assoc
         seed()
 
     def setLeftChild(self, node):
@@ -49,6 +53,8 @@ class Node:
             self.posProb = nr_pos/(nr_neg+nr_pos)
 
     def train_lookahead(self, X_data, y_data, max_depth):
+        if self.feature_assoc is None:
+            self.feature_assoc = {k: k for k in range(0, X_data.shape[1])}
         if self.depth == max_depth:
             self.setClass(self._getMajorityClass(y_data))
             self._setPosProb(y_data)
@@ -57,6 +63,12 @@ class Node:
             self._setPosProb(y_data)
         elif self.depth < max_depth - 1:
             #FEATURE AND THRESHOLD SELECTION THROUGH LOOKAHEAD
+            X_data = self._uselessFeatureElimination(X_data)
+            if self.feature_assoc == {}:
+                self.setClass(self._getMajorityClass(y_data))
+                self._setPosProb(y_data)
+                return
+
             self.feature_index, self.threshold, self.IG_score = self.lookahead(X_data,
                                                                                y_data)
             if self.threshold is None:
@@ -64,11 +76,14 @@ class Node:
                 self._setPosProb(y_data)
                 return
 
-            split_data = FilterData(X_data, y_data, self.threshold, self.feature_index)
+            split_data = FilterData(X_data, y_data, self.threshold,
+                                    self.feature_index_key)
             self.child_left = Node(current_depth=self.depth + 1,
-                                   tree=self._tree, parent=self)
+                                   tree=self._tree, parent=self,
+                                   feature_assoc=dict(self.feature_assoc))
             self.child_right = Node(current_depth=self.depth + 1,
-                                    tree=self._tree, parent=self)
+                                    tree=self._tree, parent=self,
+                                    feature_assoc=dict(self.feature_assoc))
             self.child_left.train_lookahead(split_data['leftExamples'],
                                             split_data['leftLabels'],
                                             max_depth=max_depth)
@@ -85,8 +100,6 @@ class Node:
         best_threshold = None
 
         for feature in range(0, X_data.shape[1]):
-            if all(X_data[:, feature] == X_data[0, feature]):
-                continue
             data = np.unique(sorted(X_data[:,feature]))
 
             # calculate entropy of this node
@@ -100,8 +113,10 @@ class Node:
             for i in range(0, len(data) - 2):
                 t = (data[i] + data[i+1]) / 2
                 split = FilterData(X_data,y_data,t,feature)
-                child_left = Node(tree=self._tree)
-                child_right = Node(tree=self._tree)
+                child_left = Node(tree=self._tree,
+                                  feature_assoc=dict(self.feature_assoc))
+                child_right = Node(tree=self._tree,
+                                   feature_assoc=dict(self.feature_assoc))
 
                 ig1 = child_left.getIG(split["leftExamples"], split["leftLabels"])
                 if ig1 is None:
@@ -119,7 +134,8 @@ class Node:
                     best_threshold = t
                     best_feat = feature
 
-        return (best_feat, best_threshold, best_IG)
+        self.feature_index_key = best_feat
+        return (self.feature_assoc[best_feat], best_threshold, best_IG)
 
     def getIG(self, X_data, y_data):
         self.selectFeatureByScore2(X_data, y_data)
@@ -128,6 +144,8 @@ class Node:
         return self.IG_score
 
     def train(self, X_data, y_data, max_depth):
+        if self.feature_assoc is None:
+            self.feature_assoc = {k: k for k in range(0, X_data.shape[1])}
         if self.depth == max_depth:
             self.setClass(self._getMajorityClass(y_data))
             self._setPosProb(y_data)
@@ -136,7 +154,11 @@ class Node:
             self._setPosProb(y_data)
         else:
             # FEATURE AND THRESHOLD SELECTION
-            self.selectFeature(X_data, y_data)
+            if X_data.shape[1] != len(self.feature_assoc):
+                raise Exception("X_data columns not equal to length of feature assoc BEFORE ANYTHING:\n",
+                                self.feature_assoc, "\n", X_data.shape)
+            X_data = self.selectFeature(X_data, y_data)
+
             if self.feature_index is None:
                 self.setClass(self._getMajorityClass(y_data))
                 self._setPosProb(y_data)
@@ -144,11 +166,28 @@ class Node:
             # FEATURE AND THRESHOLD SELECTION END
 
             # split data and train children
-            split_data = FilterData(X_data, y_data, self.threshold, self.feature_index)
+            split_data = FilterData(X_data, y_data, self.threshold,
+                                    self.feature_index_key)
+            if split_data["leftExamples"].shape[1] != len(self.feature_assoc):
+                raise Exception("left ex columns not equal to length of feature assoc right after split:\n",
+                                self.feature_assoc, "\n", split_data["leftExamples"].shape)
+
+            if split_data["rightExamples"].shape[1] != len(self.feature_assoc):
+                raise Exception("right ex columns not equal to length of feature assoc right after split:\n",
+                                self.feature_assoc, "\n", split_data["rightExamples"].shape)
+            # print(X_data.shape)
+            # print(split_data["leftExamples"].shape)
+            # print(split_data["rightExamples"].shape)
+            # print(len(self.feature_assoc))
+            # print("\n")
+
+
             self.child_left = Node(current_depth=self.depth + 1, random_feat=self.random,
-                                   tree=self._tree, parent=self)
+                                   tree=self._tree, parent=self,
+                                   feature_assoc=dict(self.feature_assoc))
             self.child_right = Node(current_depth=self.depth + 1, random_feat=self.random,
-                                    tree=self._tree, parent=self)
+                                    tree=self._tree, parent=self,
+                                    feature_assoc=dict(self.feature_assoc))
             self.child_left.train(split_data['leftExamples'], split_data['leftLabels'],
                                   max_depth=max_depth)
             self.child_right.train(split_data['rightExamples'], split_data['rightLabels'],
@@ -156,11 +195,11 @@ class Node:
 
     def selectFeature(self, X_data, y_data):
         if self.random:
-            self.selectFeatureByRandom(X_data, y_data)
+            return self.selectFeatureByRandom(X_data, y_data)
         elif self._tree.is_PFSRT:
-            self.selectFeatureByPFSRT(X_data, y_data)
+            return self.selectFeatureByPFSRT(X_data, y_data)
         else:
-            self.selectFeatureByScore2(X_data, y_data)
+            return self.selectFeatureByScore2(X_data, y_data)
 
     def selectThreshold(self, X_data, y_data, feature_index):
         # if all X data for this feature are equal, then we can't split
@@ -176,82 +215,92 @@ class Node:
         self.threshold = getNodeSplitThreshold(X_data[:, self.feature_index], y_data)
 
     def selectFeatureByScore2(self, X_data, y_data, criterion="entropy"):
+        X_data = self._uselessFeatureElimination(X_data)
+        #print(X_data.shape)
+        if self.feature_assoc == {}:
+            self.feature_index = None
+            # no need to return anything because this is a leaf node
+            return
+
         clf = DecisionTreeClassifier(criterion=criterion, max_depth=1)
         clf.fit(X_data, y_data)
-
-        self.feature_index = clf.tree_.feature[0]
-        self.threshold = clf.tree_.threshold[0]
-        N_left = len(y_data[X_data[:, self.feature_index] <= self.threshold])
-        N_right = len(y_data[X_data[:, self.feature_index] > self.threshold])
-        N_t = X_data.shape[0]
         if clf.tree_.impurity[0] == 0:
             self.IG_score = None
-            return
+            self.feature_index = None
+            self.threshold = None
+            return X_data
+        self.feature_index_key = clf.tree_.feature[0]
+        #print(self.feature_assoc)
+        self.feature_index = self.feature_assoc[self.feature_index_key]
+        self.threshold = clf.tree_.threshold[0]
+        N_left = len(y_data[X_data[:, self.feature_index_key] <= self.threshold])
+        N_right = len(y_data[X_data[:, self.feature_index_key] > self.threshold])
+        N_t = X_data.shape[0]
 
         self.IG_score = X_data.shape[0] / self._tree._nr_examples * (clf.tree_.impurity[0]
                                                                      - N_left /N_t * clf.tree_.impurity[1]
                                                                      - N_right/N_t * clf.tree_.impurity[2])
+        return X_data
 
-
-    def selectFeatureByScore(self, X_data, y_data, criterion="entropy"):
-
-        feature_index_association = {k: k for k in range(0, X_data.shape[1])}
-
-        # find all features that have all their data equal
-        feature = 0
-        while feature < X_data.shape[1]:
-            if all(X_data[:, feature] == X_data[0, feature]):
-                for feat in range(feature, len(feature_index_association) - 2):
-                    feature_index_association[feat] = feature_index_association[feat + 1]
-                del feature_index_association[len(feature_index_association) - 1]
-
-                X_data = np.delete(X_data, feature, axis=1)
-                feature -= 1
-            feature += 1
-
-        if feature_index_association == {}:
-            self.feature_index = None
-            return
-
-        features_IG = mutual_info_classif(X_data, y_data.ravel())
-        self.IG_score = max(features_IG)
-        self.feature_index = feature_index_association[features_IG.argmax()]
+    # def selectFeatureByScore(self, X_data, y_data, criterion="entropy"):
+    #     X_data = self._uselessFeatureElimination(X_data)
+    #     features_IG = mutual_info_classif(X_data, y_data.ravel())
+    #     self.IG_score = max(features_IG)
+    #     self.feature_index = self.feature_assoc[features_IG.argmax()]
+    #     # return feature reduced data
+    #     return X_data
 
     def selectFeatureByRandom(self, X_data, y_data):
         self.IG_score = -1 # -1 for random criteria selection
-        feat_assoc = self._uselessFeatureElimination(X_data)
-        if feat_assoc == {}:
+        X_data = self._uselessFeatureElimination(X_data)
+        if self.feature_assoc == {}:
             self.feature_index = None
+            # no need to return anything because this is a leaf node
             return
-        naive_feat = randint(0, len(feat_assoc)-1)
-        self.feature_index = feat_assoc[naive_feat]
-        self.threshold = getNodeSplitThreshold(X_data[:, self.feature_index], y_data)
+        self.feature_index_key = randint(0, len(self.feature_assoc)-1)
+        self.feature_index = self.feature_assoc[self.feature_index_key]
+        self.threshold = getNodeSplitThreshold(X_data[:, self.feature_index_key], y_data)
+        # get the feature reduced data
+        return X_data
 
     def selectFeatureByPFSRT(self, X_data, y_data):
         self.IG_score = -1
-        assoc_dict = self._uselessFeatureElimination(X_data)
-        if assoc_dict == {}:
+        X_data = self._uselessFeatureElimination(X_data)
+        if self.feature_assoc == {}:
             self.feature_index = None
+            # no need to return anything because this is a leaf node
             return
-        self.feature_index = self._ProbabilisticFeatureSelection(assoc_dict)
-        self.threshold = getNodeSplitThreshold(X_data[:, self.feature_index], y_data)
+        self.feature_index, self.feature_index_key = self._ProbabilisticFeatureSelection(self.feature_assoc)
+        # key_feature_index because the X_data is modified
+        self.threshold = getNodeSplitThreshold(X_data[:, self.feature_index_key], y_data)
+        # get the feature reduced data
+        return X_data
 
+    # returns (dictionary, modified_data) pair
     def _uselessFeatureElimination(self, X_data):
-        feature_index_association = {k: k for k in range(0, X_data.shape[1])}
+        if len(self.feature_assoc) != X_data.shape[1]:
+            raise Exception("X_data columns not equal to length of feature assoc BEFORE:\n",
+                            self.feature_assoc, "\n", X_data.shape)
+        # feature_index_association = {k: k for k in range(0, X_data.shape[1])}
         # pr = False
         # find all features that have all their data equal
         feature = 0
         while feature < X_data.shape[1]:
             if all(X_data[:, feature] == X_data[0, feature]):
-                for feat in range(feature, len(feature_index_association) - 2):
-                    feature_index_association[feat] = feature_index_association[feat + 1]
-                del feature_index_association[len(feature_index_association) - 1]
+                for feat in range(feature, len(self.feature_assoc) - 2):
+                    self.feature_assoc[feat] = self.feature_assoc[feat + 1]
+                del self.feature_assoc[len(self.feature_assoc) - 1]
 
                 X_data = np.delete(X_data, feature, axis=1)
                 feature -= 1
             feature += 1
-        return feature_index_association
 
+            if len(self.feature_assoc) != X_data.shape[1]:
+                raise Exception("X_data columns not equal to length of feature assoc AFTER:\n",
+                                self.feature_assoc, "\n", X_data.shape)
+        return X_data
+
+    # returns (value, key) pair
     def _ProbabilisticFeatureSelection(self, assoc_dict):
         # magnitudes array
         M = []
@@ -265,8 +314,8 @@ class Node:
 
         for i in range(0, len(assoc_dict)-1):
             if randv < sum(M[:i]):
-                return assoc_dict[i]
-        return assoc_dict[len(assoc_dict)-1]
+                return assoc_dict[i], i
+        return assoc_dict[len(assoc_dict)-1], len(assoc_dict) - 1
 
     def predictData(self, data):
         if self.isLeaf():
