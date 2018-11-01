@@ -1,13 +1,13 @@
 from DecisionTree.CompareAlgorithms import *
 from DecisionTree.Tree import *
-from sklearn.datasets import load_digits
+from sklearn.datasets import load_digits, load_breast_cancer
 from sklearn.metrics import accuracy_score
 from time import time
 
-DEPTH = 5
-NR_RAND_TREES = 2000
+DEPTH = 3
+NR_RAND_TREES = 300
 
-X, y = load_digits(return_X_y=True)
+X, y = load_breast_cancer(return_X_y=True)
 print(y,"\n")
 
 # BASIC TREE
@@ -75,6 +75,26 @@ if len(np.unique(y)) == 2:
 # RANDOM TREES END
 # LOOKAHEAD TREE
 print("\n------ LOOKAHEAD TREE ------\n")
+print("Depth: ", DEPTH)
+t3 = Tree(max_depth=DEPTH, lookahead=True)
 
+st3 = time()
+t3.train(X, y)
+en3 = time()
+print("yo")
+st3p = time()
+y3_pred = t3.predict(X)
+en3p = time()
+print("yu")
+
+basic_acc = accuracy_score(y,y3_pred)
+print(Get_ConfusionMatrix(y,y3_pred))
+print("F-Score: ", Get_F_Score(y,y3_pred))
+print("Accuracy: ", accuracy_score(y,y3_pred))
+print("Time to train:", en3-st3)
+print("Time to test:", en3p-st3p)
+
+if len(np.unique(y)) == 2:
+    Generate_ROC_Curve(y,t3.getClassProb(X))
 
 # LOOKAHEAD TREE END

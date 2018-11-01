@@ -18,6 +18,7 @@ class Tree:
         self.root_node = None
         self.random = random_feat
         self.nr_features = 0
+        self._nr_examples = 0
 
         # PFSRT variables
         self.is_PFSRT = PFSRT
@@ -37,6 +38,7 @@ class Tree:
         self.X_data = X_data
         self.y_data = y_data
         self.nr_features = X_data.shape[1]
+        self._nr_examples = X_data.shape[0]
         # updated data means resetting PFSRT
         self._best_accuracy = 0
         self._cur_accuracy = 0
