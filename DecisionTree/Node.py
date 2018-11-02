@@ -99,15 +99,15 @@ class Node:
         best_feat=0
         best_threshold = None
 
-        for feature in range(0, X_data.shape[1]):
-            data = np.unique(sorted(X_data[:,feature]))
+        # calculate entropy of this node
+        cur_entropy = 0
+        (_, counts) = np.unique(y_data, return_counts=True)
+        data_len = X_data.shape[0]
+        for count in counts:
+            cur_entropy += -(count / X_data.shape[0] * log2(count / X_data.shape[0]))
 
-            # calculate entropy of this node
-            cur_entropy = 0
-            (_, counts) = np.unique(y_data, return_counts=True)
-            data_len = X_data.shape[0]
-            for count in counts:
-                cur_entropy += -(count/X_data.shape[0] * log2(count/X_data.shape[0]))
+        for feature in range(0, X_data.shape[1]):
+            data = np.unique(sorted(X_data[:, feature]))
 
             # set theshold between each two data values and lookahead for potential Information Gain
             for i in range(0, len(data) - 2):
