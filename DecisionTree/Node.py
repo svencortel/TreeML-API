@@ -154,9 +154,6 @@ class Node:
             self._setPosProb(y_data)
         else:
             # FEATURE AND THRESHOLD SELECTION
-            if X_data.shape[1] != len(self.feature_assoc):
-                raise Exception("X_data columns not equal to length of feature assoc BEFORE ANYTHING:\n",
-                                self.feature_assoc, "\n", X_data.shape)
             X_data = self.selectFeature(X_data, y_data)
 
             if self.feature_index is None:
@@ -168,19 +165,6 @@ class Node:
             # split data and train children
             split_data = FilterData(X_data, y_data, self.threshold,
                                     self.feature_index_key)
-            if split_data["leftExamples"].shape[1] != len(self.feature_assoc):
-                raise Exception("left ex columns not equal to length of feature assoc right after split:\n",
-                                self.feature_assoc, "\n", split_data["leftExamples"].shape)
-
-            if split_data["rightExamples"].shape[1] != len(self.feature_assoc):
-                raise Exception("right ex columns not equal to length of feature assoc right after split:\n",
-                                self.feature_assoc, "\n", split_data["rightExamples"].shape)
-            # print(X_data.shape)
-            # print(split_data["leftExamples"].shape)
-            # print(split_data["rightExamples"].shape)
-            # print(len(self.feature_assoc))
-            # print("\n")
-
 
             self.child_left = Node(current_depth=self.depth + 1, random_feat=self.random,
                                    tree=self._tree, parent=self,
