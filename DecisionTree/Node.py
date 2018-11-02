@@ -221,9 +221,8 @@ class Node:
         N_right = len(y_data[X_data[:, self.feature_index_key] > self.threshold])
         N_t = X_data.shape[0]
 
-        self.IG_score = X_data.shape[0] / self._tree._nr_examples * (clf.tree_.impurity[0]
-                                                                     - N_left /N_t * clf.tree_.impurity[1]
-                                                                     - N_right/N_t * clf.tree_.impurity[2])
+        self.IG_score = clf.tree_.impurity[0] -(N_left /N_t * clf.tree_.impurity[1]
+                                              + N_right/N_t * clf.tree_.impurity[2])
         return X_data
 
     # def selectFeatureByScore(self, X_data, y_data, criterion="entropy"):
