@@ -120,11 +120,11 @@ class Node:
 
                 ig1 = child_left.getIG(split["leftExamples"], split["leftLabels"])
                 if ig1 is None:
-                    ig1 = cur_entropy
+                    ig1 = cur_entropy * split["leftExamples"].shape[0] / X_data.shape[0]
 
                 ig2 = child_right.getIG(split["rightExamples"], split["rightLabels"])
                 if ig2 is None:
-                    ig2 = cur_entropy
+                    ig2 = cur_entropy * split["rightExamples"].shape[0] / X_data.shape[0]
 
                 cur_ig = (ig1 * split["leftExamples"].shape[0] +
                           ig2 * split["rightExamples"].shape[0]) / X_data.shape[0]
